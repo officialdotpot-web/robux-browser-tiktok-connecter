@@ -1,0 +1,19 @@
+{
+  "name": "tiktok-demo",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "TikTok LIVE interactive Robux simulation (no actual Robux is sent).",
+  "dependencies": {
+    "express": "^5.3.0",
+    "tiktok-live-connector": "^2.5.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
