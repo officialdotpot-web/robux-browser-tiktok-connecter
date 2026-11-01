@@ -19,8 +19,13 @@ export function createGiftNormalizer(){
  return function(d){
   const sender=senderOf(d), details=d?.giftDetails || d?.gift || {};
   const name=String(details.giftName||details.name||d?.giftName||d?.extendedGiftInfo?.name||'').trim().replace(/\s+/g,' ');
-  const amount=known.get(name.toLowerCase());
-  if(!sender||!amount)return null;
+  // Any gift explicitly reporting a one-coin/one-diamond price earns 5,000.
+  // Do not guess from an unknown or missing price.
+  const prices=[details.diamondCount,details.diamond_count,d?.extendedGiftInfo?.diamondCount,d?.extendedGiftInfo?.diamond_count,d?.diamondCount];
+  const rawPrice=prices.find(v=>v!=null&&Number.isFinite(Number(v))&&Number(v)>0);
+  const amount=known.get(name.toLowerCase())||(rawPrice!=null&&Number(rawPrice)===1?5000:0);
+  const headlessOnly=name.toLowerCase()==='money gun';
+  if(!sender||(!amount&&!headlessOnly))return null;
   const rawMsgId=d?.common?.msgId??d?.common?.msgID??d?.msgId;
   const id=rawMsgId==null?'':String(rawMsgId);
   if(id && id!=='0'&&id!=='[object Object]'){if(seen.has(id))return null;seen.add(id);if(seen.size>20000)seen.delete(seen.values().next().value)}
@@ -37,6 +42,6 @@ export function createGiftNormalizer(){
    // Without a group ID, the next streak starts on a fresh count of one.
    if(!group && old.finished && !d?.repeatEnd && count===1){increment=1;streaks.set(key,{count:1,finished:false})}
   }
-  return increment>0?{sender,name,amount,count:increment}:null;
+  return increment>0?{sender,name:name||'1-coin gift',amount:headlessOnly?0:amount,count:increment}:null;
  }
 }
