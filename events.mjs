@@ -37,25 +37,32 @@ export function createGiftNormalizer(){
   const amount=isMoneyGun?0:(known.get(name.toLowerCase())||(rawPrice!=null&&Number(rawPrice)===1?5000:0));
   // All named gifts are emitted. Zero-valued unknown gifts are Headless-only;
   // the Robux automation only accepts its existing explicit amounts.
-  const giftType=Number(details.giftType??details.type??gift.giftType??gift.type??d?.giftType??0);
+  const giftType=Number(details.giftType??details.type??gift.giftType??gift.type??d?.giftType??((gift.combo||details.combo)?1:0));
+  const isStreak=giftType===1||gift.combo===true||details.combo===true||extended.combo===true;
+  const repeatEnded=d?.repeatEnd===true||Number(d?.repeatEnd)===1;
   const count=Math.min(1000,Math.max(1,Math.floor(Number(d?.repeatCount)||1)));
+  let group=String(d?.groupId||d?.groupID||'');if(group==='0')group='';
+  const giftIdentity=String(d?.giftId||gift.id||name);
   const rawMsgId=d?.common?.msgId??d?.common?.msgID??d?.msgId;
   const id=rawMsgId==null?'':String(rawMsgId);
   if(id && id!=='0'&&id!=='[object Object]'){
-    const key=giftType===1?id+'|'+count+'|'+(d?.repeatEnd?1:0):id;
+    const key=isStreak?sender+'|'+giftIdentity+'|'+group+'|'+id+'|'+count+'|'+(repeatEnded?1:0):id;
     if(seen.has(key))return null;seen.add(key);if(seen.size>20000)seen.delete(seen.values().next().value);
   }
-  let increment=count;
-  if(giftType===1){
-   let group=String(d?.groupId||d?.groupID||'');if(group==='0')group='';
-   const key=sender+'|'+String(d?.giftId||gift.id||name)+'|'+group;
+  let increment=count,headlessCount=1;
+  if(isStreak){
+   const key=sender+'|'+giftIdentity+'|'+group;
    const old=streaks.get(key)||{count:0,finished:false,lastId:''};
    increment=Math.max(0,count-old.count);
    // A finished, ungrouped streak can be followed by another separate gift.
-   if(!group&&old.finished&&count===1&&((id&&id!=='0'&&id!==old.lastId)||!d?.repeatEnd))increment=1;
-   streaks.set(key,{count:increment===1&&!group&&old.finished&&count===1?1:Math.max(count,old.count),finished:!!d?.repeatEnd,lastId:id});
+   const restart=!group&&count===1&&((old.finished&&((id&&id!=='0'&&id!==old.lastId)||!repeatEnded))||(old.count>1&&id&&id!=='0'&&id!==old.lastId));
+   if(restart)increment=1;
+   // Headless rewards are one per combo, even when its count grows. The
+   // existing Robux count remains the number of individual gifts in that update.
+   headlessCount=(old.count===0||restart)?1:0;
+   streaks.set(key,{count:restart?1:Math.max(count,old.count),finished:repeatEnded,lastId:id});
    if(streaks.size>10000)streaks.delete(streaks.keys().next().value);
   }
-  return increment>0?{sender,senderDisplay:senderDisplayOf(d),name,amount,count:increment}:null;
+  return increment>0?{sender,senderDisplay:senderDisplayOf(d),name,amount,count:increment,headlessCount}:null;
  }
 }
