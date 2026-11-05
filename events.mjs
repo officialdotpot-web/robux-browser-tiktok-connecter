@@ -20,7 +20,7 @@ export function normalizeChat(d) {
  if(typeof text!=='string')return null;
  return {comment:text.slice(0,300),sender:senderOf(d),senderDisplay:senderDisplayOf(d)};
 }
-const known=new Map([['rose',5000],['boxing gloves',100000],['coral',200000],['galaxy',500000],['future encounter',1000000]]);
+const known=new Map([['rose',5000],['doughnut',45000],['boxing gloves',100000],['coral',200000],['galaxy',500000],['future encounter',1000000]]);
 export function createGiftNormalizer(){
  const streaks=new Map(), seen=new Set();
  return function(d){
