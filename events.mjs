@@ -20,7 +20,7 @@ export function normalizeChat(d) {
  if(typeof text!=='string')return null;
  return {comment:text.slice(0,300),sender:senderOf(d),senderDisplay:senderDisplayOf(d)};
 }
-const known=new Map([['rose',5000],['doughnut',45000],['boxing gloves',100000],['coral',200000],['galaxy',500000],['future encounter',1000000]]);
+const known=new Map([['rose',5000],['doughnut',25000],['boxing gloves',100000],['coral',200000],['galaxy',500000],['future encounter',1000000]]);
 export function createGiftNormalizer(){
  const streaks=new Map(), seen=new Set();
  return function(d){
@@ -33,10 +33,9 @@ export function createGiftNormalizer(){
   // Preserve the existing one-coin rule when price is reported but no name.
   // Otherwise do not guess whether a nameless event is a special gift.
   if(!name){if(rawPrice!=null&&Number(rawPrice)===1)name='1-coin gift';else return null}
-  const isMoneyGun=name.toLowerCase()==='money gun';
-  const amount=isMoneyGun?0:(known.get(name.toLowerCase())||(rawPrice!=null&&Number(rawPrice)===1?5000:0));
-  // All named gifts are emitted. Zero-valued unknown gifts are Headless-only;
-  // the Robux automation only accepts its existing explicit amounts.
+  // Keep explicit gift mappings, keep the legacy one-coin amount, and map
+  // every other named gift to the Robux sender's default gift amount.
+  const amount=known.get(name.toLowerCase())||(rawPrice!=null&&Number(rawPrice)===1?5000:7500);
   const giftType=Number(details.giftType??details.type??gift.giftType??gift.type??d?.giftType??((gift.combo||details.combo)?1:0));
   const isStreak=giftType===1||gift.combo===true||details.combo===true||extended.combo===true;
   const repeatEnded=d?.repeatEnd===true||Number(d?.repeatEnd)===1;
@@ -63,6 +62,6 @@ export function createGiftNormalizer(){
    streaks.set(key,{count:restart?1:Math.max(count,old.count),finished:repeatEnded,lastId:id});
    if(streaks.size>10000)streaks.delete(streaks.keys().next().value);
   }
-  return increment>0?{sender,senderDisplay:senderDisplayOf(d),name,amount,count:increment,headlessCount}:null;
+  return increment>0||isStreak&&repeatEnded?{sender,senderDisplay:senderDisplayOf(d),name,amount,count:increment,headlessCount,isStreak,repeatEnded}:null;
  }
 }

@@ -8,6 +8,8 @@ app.set('trust proxy', 1);
 // accepts anonymous cross-origin requests and never receives a TikTok password.
 app.use('/api', (req,res,next)=>{res.set('Access-Control-Allow-Origin','*');next()});
 const activeByIp=new Map(), attempts=new Map(); let activeTotal=0;
+// Lightweight status checks use TikTok's room metadata, not a chat WebSocket.
+const liveChecks=new Map();
 function release(ip){activeTotal=Math.max(0,activeTotal-1);const n=(activeByIp.get(ip)||1)-1;if(n<=0)activeByIp.delete(ip);else activeByIp.set(ip,n)}
 function tryAcquire(ip){
   const now=Date.now();let v=attempts.get(ip);if(!v||now-v.start>60000)v={start:now,count:0};
@@ -15,8 +17,19 @@ function tryAcquire(ip){
   if(v.count>20||(activeByIp.get(ip)||0)>=3||activeTotal>=20)return false;
   activeByIp.set(ip,(activeByIp.get(ip)||0)+1);activeTotal++;return true;
 }
-setInterval(()=>{const cutoff=Date.now()-120000;for(const [key,value] of attempts)if(value.start<cutoff)attempts.delete(key)},60000).unref();
+setInterval(()=>{const cutoff=Date.now()-120000;for(const [key,value] of attempts)if(value.start<cutoff)attempts.delete(key);for(const [key,value] of liveChecks)if(Date.now()-value.at>15000)liveChecks.delete(key)},60000).unref();
 app.get('/api/health', (req,res)=>res.json({service:'tiktok-live-demo',ok:true}));
+// Called by Auto Connect every five seconds. It does not open a LIVE chat
+// connection; it only opens SSE once TikTok reports the account is LIVE.
+app.get('/api/live-check',async(req,res)=>{
+ const name=String(req.query.username||'').replace(/^@/,'').trim();
+ if(!/^[A-Za-z0-9._]{2,24}$/.test(name))return res.status(400).json({error:'Invalid TikTok username'});
+ const key=name.toLowerCase(),now=Date.now(),cached=liveChecks.get(key);
+ if(cached&&now-cached.at<4000){try{return res.json(await cached.promise)}catch{}}
+ const promise=(async()=>{const probe=new TikTokLiveConnection(name,{processInitialData:false,webClientOptions:{timeout:{request:10000}}});const isLive=await probe.fetchIsLive();return {username:name,isLive:!!isLive,checkedAt:new Date().toISOString()}})();
+ liveChecks.set(key,{at:now,promise});
+ try{return res.json(await promise)}catch(error){liveChecks.delete(key);console.error('TikTok LIVE status check failed:',name,error?.message||error);return res.status(502).json({error:'LIVE status check failed; will check again shortly'})}
+});
 app.get('/api/live',(req,res)=>{
  const name=String(req.query.username||'').replace(/^@/,'').trim();
  if(!/^[A-Za-z0-9._]{2,24}$/.test(name)){return res.status(400).send('Invalid TikTok username');}
